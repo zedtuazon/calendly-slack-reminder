@@ -21,7 +21,6 @@ app.post('/calendly-webhook', async (req, res) => {
     return res.status(400).send('Bad payload');
   }
 
-  // Extract event name from multiple possible locations
   const eventNameRaw =
     payload.event_type?.name ||
     payload.name ||
@@ -35,19 +34,17 @@ app.post('/calendly-webhook', async (req, res) => {
     'Patient Growth - Priority Onboarding Call',
   ];
 
-  // Partial match check (startsWith) for flexibility
   if (!allowedEvents.some(name => eventName.startsWith(name))) {
     console.log(`Ignored event name: ${eventName}`);
     return res.status(204).send();
   }
 
-  // Extract invitee info
-  const inviteeName = payload.invitee?.name || `${payload.first_name || ''} ${payload.last_name || ''}`.trim() || 'N/A';
+  const inviteeName = `${payload.first_name || ''} ${payload.last_name || ''}`.trim() || 'N/A';
 
   const meetingStartTimeStr = payload.event?.start_time || payload.scheduled_event?.start_time;
   const meetingStartTime = meetingStartTimeStr ? new Date(meetingStartTimeStr) : null;
 
-  const qAndA = payload.questions_and_answers || payload.invitee?.questions_and_answers || [];
+  const qAndA = payload.questions_and_answers || [];
 
   const practiceName = qAndA.find(q =>
     q.question.toLowerCase().includes('practice')
@@ -65,12 +62,13 @@ app.post('/calendly-webhook', async (req, res) => {
   // Reminder time = 24 hours before the meeting
   const reminderStartTime = new Date(meetingStartTime.getTime() - 24 * 60 * 60 * 1000);
 
-  // Format dates for Google Calendar URL: YYYYMMDDTHHMMSSZ/YYYYMMDDTHHMMSSZ
   const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Reminder:+${encodeURIComponent(eventName)}&details=Call+with+${encodeURIComponent(inviteeName)}+from+${encodeURIComponent(practiceName)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(meetingStartTime)}&location=Phone:+${encodeURIComponent(phoneNumber)}`;
 
   const slackMessage = {
     text: `A new OB call has been scheduled for *${practiceName}*. Please update the funnel accordingly and use this <${googleCalendarUrl}|LINK> to add the Pre-OB survey call to your calendar.`,
   };
+
+  console.log('Prepared Slack message:', slackMessage);
 
   try {
     const response = await axios.post(process.env.SLACK_WEBHOOK_URL, slackMessage);
@@ -83,8 +81,8 @@ app.post('/calendly-webhook', async (req, res) => {
 });
 
 function formatGoogleTime(date) {
-  // YYYYMMDDTHHMMSSZ format
-  return date.toISOString().replace(/[-:]|\.\d{3}/g, '').slice(0, 15) + 'Z';
+  // YYYYMMDDTHHMMSSZ format (Google Calendar expects UTC time with Z)
+  return date.toISOString().replace(/[-:]|\.\d{3}/g, '');
 }
 
 const PORT = process.env.PORT || 10000;
