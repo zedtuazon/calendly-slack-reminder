@@ -16,12 +16,16 @@ app.post('/calendly-webhook', async (req, res) => {
     return res.status(204).send(); // Ignore other events
   }
 
-  if (!payload || !payload.event_type || !payload.event_type.name) {
-    console.log('Missing event_type or name in payload:', payload);
+  if (!payload) {
+    console.log('Missing payload in request body');
     return res.status(400).send('Bad payload');
   }
 
-  const eventName = payload.event_type.name;
+  // Event name can sometimes be in different places; try both
+  const eventName =
+    payload.event_type?.name ||
+    payload.event?.name ||
+    'unknown event';
 
   const allowedEvents = [
     'Patient Growth - Onboarding Call (Customer Enablement)',
@@ -34,8 +38,14 @@ app.post('/calendly-webhook', async (req, res) => {
   }
 
   const inviteeName = payload.invitee?.name || 'N/A';
-  const meetingStartTimeStr = payload.event?.start_time;
+
+  const meetingStartTimeStr = payload.event?.start_time || payload.start_time;
   const meetingStartTime = meetingStartTimeStr ? new Date(meetingStartTimeStr) : null;
+
+  if (!meetingStartTime) {
+    console.log('Missing or invalid meeting start time:', meetingStartTimeStr);
+    return res.status(400).send('Bad meeting start time');
+  }
 
   const qAndA = payload.invitee?.questions_and_answers || [];
 
@@ -47,15 +57,9 @@ app.post('/calendly-webhook', async (req, res) => {
     q.question.toLowerCase().includes('phone')
   )?.answer || 'N/A';
 
-  if (!meetingStartTime) {
-    console.log('Missing or invalid meeting start time:', meetingStartTimeStr);
-    return res.status(400).send('Bad meeting start time');
-  }
-
   // Reminder time = 24 hours before the meeting
   const reminderStartTime = new Date(meetingStartTime.getTime() - 24 * 60 * 60 * 1000);
 
-  // Format dates for Google Calendar URL: YYYYMMDDTHHMMSSZ/YYYYMMDDTHHMMSSZ
   const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Reminder:+${encodeURIComponent(eventName)}&details=Call+with+${encodeURIComponent(inviteeName)}+from+${encodeURIComponent(practiceName)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(meetingStartTime)}&location=Phone:+${encodeURIComponent(phoneNumber)}`;
 
   const slackMessage = {
@@ -73,7 +77,7 @@ app.post('/calendly-webhook', async (req, res) => {
 });
 
 function formatGoogleTime(date) {
-  // YYYYMMDDTHHMMSSZ format
+  // Convert to Google Calendar format: YYYYMMDDTHHMMSSZ
   return date.toISOString().replace(/[-:]|\.\d{3}/g, '').slice(0, 15) + 'Z';
 }
 
