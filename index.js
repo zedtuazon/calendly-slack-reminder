@@ -21,33 +21,33 @@ app.post('/calendly-webhook', async (req, res) => {
     return res.status(400).send('Bad payload');
   }
 
-  // Event name can sometimes be in different places; try both
-  const eventName =
+  // Extract event name from multiple possible locations
+  const eventNameRaw =
     payload.event_type?.name ||
-    payload.event?.name ||
-    'unknown event';
+    payload.name ||
+    payload.scheduled_event?.name ||
+    '';
+
+  const eventName = eventNameRaw.trim();
 
   const allowedEvents = [
-    'Patient Growth - Onboarding Call (Customer Enablement)',
-    'Patient Growth - Priority Onboarding Call (Customer Enablement)',
+    'Patient Growth - Onboarding Call',
+    'Patient Growth - Priority Onboarding Call',
   ];
 
-  if (!allowedEvents.includes(eventName)) {
+  // Partial match check (startsWith) for flexibility
+  if (!allowedEvents.some(name => eventName.startsWith(name))) {
     console.log(`Ignored event name: ${eventName}`);
     return res.status(204).send();
   }
 
-  const inviteeName = payload.invitee?.name || 'N/A';
+  // Extract invitee info
+  const inviteeName = payload.invitee?.name || `${payload.first_name || ''} ${payload.last_name || ''}`.trim() || 'N/A';
 
-  const meetingStartTimeStr = payload.event?.start_time || payload.start_time;
+  const meetingStartTimeStr = payload.event?.start_time || payload.scheduled_event?.start_time;
   const meetingStartTime = meetingStartTimeStr ? new Date(meetingStartTimeStr) : null;
 
-  if (!meetingStartTime) {
-    console.log('Missing or invalid meeting start time:', meetingStartTimeStr);
-    return res.status(400).send('Bad meeting start time');
-  }
-
-  const qAndA = payload.invitee?.questions_and_answers || [];
+  const qAndA = payload.questions_and_answers || payload.invitee?.questions_and_answers || [];
 
   const practiceName = qAndA.find(q =>
     q.question.toLowerCase().includes('practice')
@@ -57,9 +57,15 @@ app.post('/calendly-webhook', async (req, res) => {
     q.question.toLowerCase().includes('phone')
   )?.answer || 'N/A';
 
+  if (!meetingStartTime) {
+    console.log('Missing or invalid meeting start time:', meetingStartTimeStr);
+    return res.status(400).send('Bad meeting start time');
+  }
+
   // Reminder time = 24 hours before the meeting
   const reminderStartTime = new Date(meetingStartTime.getTime() - 24 * 60 * 60 * 1000);
 
+  // Format dates for Google Calendar URL: YYYYMMDDTHHMMSSZ/YYYYMMDDTHHMMSSZ
   const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Reminder:+${encodeURIComponent(eventName)}&details=Call+with+${encodeURIComponent(inviteeName)}+from+${encodeURIComponent(practiceName)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(meetingStartTime)}&location=Phone:+${encodeURIComponent(phoneNumber)}`;
 
   const slackMessage = {
@@ -77,7 +83,7 @@ app.post('/calendly-webhook', async (req, res) => {
 });
 
 function formatGoogleTime(date) {
-  // Convert to Google Calendar format: YYYYMMDDTHHMMSSZ
+  // YYYYMMDDTHHMMSSZ format
   return date.toISOString().replace(/[-:]|\.\d{3}/g, '').slice(0, 15) + 'Z';
 }
 
