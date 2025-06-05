@@ -62,15 +62,14 @@ app.post('/calendly-webhook', async (req, res) => {
   // Reminder time = 24 hours before the meeting
   const reminderStartTime = new Date(meetingStartTime.getTime() - 24 * 60 * 60 * 1000);
 
+  // Event title fixed as requested
   const eventTitle = `PRE- OB survey call + ${practiceName}`;
 
-  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE` +
-    `&text=${encodeURIComponent(eventTitle)}` +
-    `&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(new Date(reminderStartTime.getTime() + 60 * 60 * 1000))}` + // 1-hour event  
-    `&location=${encodeURIComponent(phoneNumber)}`;
+  // Google Calendar link with pre-filled event: title, time 24h before meeting, location=phone number, no description or guests
+  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(reminderStartTime)}&location=${encodeURIComponent(phoneNumber)}`;
 
   const slackMessage = {
-    text: `A new OB call has been scheduled for *${practiceName}*. Please update the funnel accordingly and use this <${googleCalendarUrl}|LINK> to add the event to your calendar.`,
+    text: `A new OB call has been scheduled for *${practiceName}*. Please update the funnel accordingly and use this <${googleCalendarUrl}|LINK> to add the Pre-OB survey call to your calendar.`,
   };
 
   console.log('Prepared Slack message:', slackMessage);
@@ -86,7 +85,7 @@ app.post('/calendly-webhook', async (req, res) => {
 });
 
 function formatGoogleTime(date) {
-  // YYYYMMDDTHHMMSSZ format (Google Calendar expects UTC time with Z)
+  // Format as YYYYMMDDTHHMMSSZ for Google Calendar (UTC time)
   return date.toISOString().replace(/[-:]|\.\d{3}/g, '');
 }
 
