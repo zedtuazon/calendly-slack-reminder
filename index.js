@@ -21,27 +21,22 @@ app.post('/calendly-webhook', async (req, res) => {
     return res.status(400).send('Bad payload');
   }
 
-  const eventNameRaw =
-    payload.event_type?.name ||
-    payload.name ||
-    payload.scheduled_event?.name ||
-    '';
-
-  const eventName = eventNameRaw.trim();
+  // Fix here: get event type name from scheduled_event.name and trim it
+  const eventNameRaw = payload.scheduled_event?.name?.trim() || '';
 
   const allowedEvents = [
     'Patient Growth - Onboarding Call',
     'Patient Growth - Priority Onboarding Call',
   ];
 
-  if (!allowedEvents.some(name => eventName.startsWith(name))) {
-    console.log(`Ignored event name: ${eventName}`);
+  if (!allowedEvents.some(name => eventNameRaw.startsWith(name))) {
+    console.log(`Ignored event name: ${eventNameRaw}`);
     return res.status(204).send();
   }
 
   const inviteeName = `${payload.first_name || ''} ${payload.last_name || ''}`.trim() || 'N/A';
 
-  const meetingStartTimeStr = payload.event?.start_time || payload.scheduled_event?.start_time;
+  const meetingStartTimeStr = payload.scheduled_event?.start_time || payload.event?.start_time;
   const meetingStartTime = meetingStartTimeStr ? new Date(meetingStartTimeStr) : null;
 
   const qAndA = payload.questions_and_answers || [];
@@ -62,11 +57,8 @@ app.post('/calendly-webhook', async (req, res) => {
   // Reminder time = 24 hours before the meeting
   const reminderStartTime = new Date(meetingStartTime.getTime() - 24 * 60 * 60 * 1000);
 
-  // Event title fixed as requested
-  const eventTitle = `PRE- OB survey call + ${practiceName}`;
-
-  // Google Calendar link with pre-filled event: title, time 24h before meeting, location=phone number, no description or guests
-  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(reminderStartTime)}&location=${encodeURIComponent(phoneNumber)}`;
+  // Build Google Calendar URL
+  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`PRE- OB survey call + ${practiceName}`)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(meetingStartTime)}&location=${encodeURIComponent(phoneNumber)}`;
 
   const slackMessage = {
     text: `A new OB call has been scheduled for *${practiceName}*. Please update the funnel accordingly and use this <${googleCalendarUrl}|LINK> to add the Pre-OB survey call to your calendar.`,
@@ -85,7 +77,7 @@ app.post('/calendly-webhook', async (req, res) => {
 });
 
 function formatGoogleTime(date) {
-  // Format as YYYYMMDDTHHMMSSZ for Google Calendar (UTC time)
+  // YYYYMMDDTHHMMSSZ format (Google Calendar expects UTC time with Z)
   return date.toISOString().replace(/[-:]|\.\d{3}/g, '');
 }
 
