@@ -112,27 +112,22 @@ app.post('/calendly-webhook', async (req, res) => {
     return res.status(400).send('Bad payload');
   }
 
-  const eventNameRaw =
-    payload.event_type?.name ||
-    payload.name ||
-    payload.scheduled_event?.name ||
-    '';
-
-  const eventName = eventNameRaw.trim();
+  // Get event type name from scheduled_event.name and trim it
+  const eventNameRaw = payload.scheduled_event?.name?.trim() || '';
 
   const allowedEvents = [
     'Patient Growth - Onboarding Call',
     'Patient Growth - Priority Onboarding Call',
   ];
 
-  if (!allowedEvents.some(name => eventName.startsWith(name))) {
-    console.log(`Ignored event name: ${eventName}`);
+  if (!allowedEvents.some(name => eventNameRaw.startsWith(name))) {
+    console.log(`Ignored event name: ${eventNameRaw}`);
     return res.status(204).send();
   }
 
   const inviteeName = `${payload.first_name || ''} ${payload.last_name || ''}`.trim() || 'N/A';
 
-  const meetingStartTimeStr = payload.event?.start_time || payload.scheduled_event?.start_time;
+  const meetingStartTimeStr = payload.scheduled_event?.start_time || payload.event?.start_time;
   const meetingStartTime = meetingStartTimeStr ? new Date(meetingStartTimeStr) : null;
 
   const qAndA = payload.questions_and_answers || [];
@@ -150,15 +145,11 @@ app.post('/calendly-webhook', async (req, res) => {
     return res.status(400).send('Bad meeting start time');
   }
 
-  // Calculate reminderStartTime with weekend adjustment
-  let reminderStartTime = new Date(meetingStartTime.getTime() - 24 * 60 * 60 * 1000);
+  // Reminder time = 24 hours before the meeting
+  const reminderStartTime = new Date(meetingStartTime.getTime() - 24 * 60 * 60 * 1000);
 
-  // If meeting is Monday, set reminder to previous Friday
-  if (meetingStartTime.getUTCDay() === 1) { // Monday = 1
-    reminderStartTime = new Date(meetingStartTime.getTime() - 3 * 24 * 60 * 60 * 1000);
-  }
-
-  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent('PRE- OB survey call + ' + practiceName)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(reminderStartTime)}&location=${encodeURIComponent(phoneNumber)}`;
+  // Build Google Calendar URL
+  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`PRE- OB survey call + ${practiceName}`)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(meetingStartTime)}&location=${encodeURIComponent(phoneNumber)}`;
 
   const slackMessage = {
     text: `A new OB call has been scheduled for [${practiceName}]. Please update the funnel accordingly and use this <${googleCalendarUrl}|LINK> to add the Pre-OB survey call to your calendar.`,
