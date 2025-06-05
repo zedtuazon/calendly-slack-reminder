@@ -62,10 +62,15 @@ app.post('/calendly-webhook', async (req, res) => {
   // Reminder time = 24 hours before the meeting
   const reminderStartTime = new Date(meetingStartTime.getTime() - 24 * 60 * 60 * 1000);
 
-  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Reminder:+${encodeURIComponent(eventName)}&details=Call+with+${encodeURIComponent(inviteeName)}+from+${encodeURIComponent(practiceName)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(meetingStartTime)}&location=Phone:+${encodeURIComponent(phoneNumber)}`;
+  const eventTitle = `PRE- OB survey call + ${practiceName}`;
+
+  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE` +
+    `&text=${encodeURIComponent(eventTitle)}` +
+    `&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(new Date(reminderStartTime.getTime() + 60 * 60 * 1000))}` + // 1-hour event  
+    `&location=${encodeURIComponent(phoneNumber)}`;
 
   const slackMessage = {
-    text: `A new OB call has been scheduled for *${practiceName}*. Please update the funnel accordingly and use this <${googleCalendarUrl}|LINK> to add the Pre-OB survey call to your calendar.`,
+    text: `A new OB call has been scheduled for *${practiceName}*. Please update the funnel accordingly and use this <${googleCalendarUrl}|LINK> to add the event to your calendar.`,
   };
 
   console.log('Prepared Slack message:', slackMessage);
