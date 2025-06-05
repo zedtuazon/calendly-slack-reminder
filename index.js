@@ -35,10 +35,17 @@ app.post('/calendly-webhook', async (req, res) => {
   // Pre-filled Google Calendar event link
   const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Reminder:+${encodeURIComponent(eventName)}&details=Call+with+${encodeURIComponent(inviteeName)}+from+${encodeURIComponent(practiceName)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(meetingStartTime)}&location=Phone:+${encodeURIComponent(phoneNumber)}`;
 
+  // Slack message text per your request
+  const slackMessage = {
+    text: `A new OB call has been scheduled for *${practiceName}*. Please update the funnel accordingly and use this <${googleCalendarUrl}|LINK> to add the Pre-OB survey call to your calendar.`,
+  };
+
   // Send to Slack
-  await axios.post(process.env.SLACK_WEBHOOK_URL, {
-    text: `📅 *New ${eventName} Booked!*\n*Invitee:* ${inviteeName}\n*Practice:* ${practiceName}\n*Phone:* ${phoneNumber}\n*Start:* ${meetingStartTime.toISOString()}\n\n➕ [Set reminder 24hr before](<${googleCalendarUrl}>)`
-  });
+  try {
+    await axios.post(process.env.SLACK_WEBHOOK_URL, slackMessage);
+  } catch (err) {
+    console.error('Error sending Slack message:', err.message);
+  }
 
   res.status(200).send('Received and processed');
 });
