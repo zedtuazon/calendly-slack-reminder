@@ -250,11 +250,11 @@ app.post('/calendly-webhook', async (req, res) => {
   const eventEndTime = new Date(reminderStartTime.getTime() + 15 * 60 * 1000);
 
   // Build Google Calendar link
-  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`PRE- OB survey call + ${practiceName}`)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(eventEndTime)}&location=${encodeURIComponent(phoneNumber)}`;
+  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`PRE- OB survey call - ${practiceName}`)}&dates=${formatGoogleTime(reminderStartTime)}/${formatGoogleTime(eventEndTime)}&location=${encodeURIComponent(phoneNumber)}`;
 
   // Slack message
   const slackMessage = {
-    text: `A new OB call has been scheduled for *${practiceName}*. Please update the funnel accordingly and use this <${googleCalendarUrl}|LINK> to add the Pre-OB survey call to your calendar.`,
+    text: `A new OB call has been scheduled for *[${practiceName}]*. Please update the funnel accordingly and use this <${googleCalendarUrl}|LINK> to add the Pre-OB survey call to your calendar.`,
   };
 
   console.log('Prepared Slack message:', slackMessage);
@@ -277,4 +277,5 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
