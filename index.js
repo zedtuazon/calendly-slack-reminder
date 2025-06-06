@@ -462,24 +462,17 @@ app.post('/calendly-webhook', async (req, res) => {
   const hostFullName = payload.scheduled_event?.event_memberships?.[0]?.user_name || 'there';
   const hostFirstName = hostFullName.split(' ')[0];
 
-  // Format meeting date in America/Toronto timezone (Eastern) - DD-MMM-YYYY
-  const meetingDateFormatted = meetingStartTime.toLocaleString('en-GB', {
-    timeZone: 'America/Toronto',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).replace(/ /g, '-');
+  // Format meeting date as DD-MMM-YYYY in America/Toronto timezone
+  const meetingDateFormatted = formatDateToronto(meetingStartTime);
 
   // Updated Slack message
   const slackMessage = {
     text: `Hey ${hostFirstName}, an OB has been scheduled!
 
-Practice Name: *${practiceName}*
-OB Date: *${meetingDateFormatted}*
+Practice Name: ${practiceName}
+OB Date: ${meetingDateFormatted}.
 
-Please update our funnel accordingly, and use the link below to add the Pre-OB survey call to your calendar:
-
-<${googleCalendarUrl}|Add to Calendar>`,
+Please update our funnel accordingly and use this <${googleCalendarUrl}|LINK> to add the Pre-OB survey call to your calendar.`,
   };
 
   console.log('Prepared Slack message:', slackMessage);
@@ -498,14 +491,13 @@ function formatGoogleTime(date) {
   return date.toISOString().replace(/[-:]|\.\d{3}/g, '');
 }
 
+function formatDateToronto(date) {
+  const options = { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Toronto' };
+  // Example output: "16-Jun-2025"
+  return date.toLocaleDateString('en-GB', options).replace(/ /g, '-');
+}
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
-
-
-
