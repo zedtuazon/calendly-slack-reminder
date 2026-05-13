@@ -25,7 +25,10 @@ function resolveSlackId(hostFullName) {
   return HOST_TO_SLACK_ID[firstName] || null;
 }
 
-const ALLOWED_EVENTS = [
+// Allow-list of event-name prefixes. Variants like "... + Integration" are
+// accepted automatically because we match by startsWith, but the FULL event
+// name (including any suffix) is what's shown in the Slack message.
+const ALLOWED_EVENT_PREFIXES = [
   'Patient Growth - Onboarding Call',
   'Patient Growth - Priority Onboarding Call',
 ];
@@ -47,13 +50,14 @@ app.post('/calendly-webhook', async (req, res) => {
 
   const eventNameRaw = payload.scheduled_event?.name?.trim() || '';
 
-  // Find the matching base type. Sort by length DESC so 'Priority Onboarding Call'
-  // wins over 'Onboarding Call' when the raw name could startsWith both.
-  const baseEventType = [...ALLOWED_EVENTS]
-    .sort((a, b) => b.length - a.length)
-    .find(name => eventNameRaw.startsWith(name));
+  // Accept the event if it starts with one of the allowed prefixes. The full
+  // event name (e.g. 'Patient Growth - Onboarding Call + Integration') is
+  // preserved for display so variants are distinguishable in Slack.
+  const isAllowed = ALLOWED_EVENT_PREFIXES.some(prefix =>
+    eventNameRaw.startsWith(prefix)
+  );
 
-  if (!baseEventType) {
+  if (!isAllowed) {
     console.log(`Ignored event name: ${eventNameRaw}`);
     return res.status(204).send();
   }
@@ -86,7 +90,7 @@ app.post('/calendly-webhook', async (req, res) => {
 
 Practice Name: ${practiceName}
 Date: ${meetingDateFormatted}.
-OB type: ${baseEventType}
+OB type: ${eventNameRaw}
 
 Please update our funnel accordingly.`,
   };
