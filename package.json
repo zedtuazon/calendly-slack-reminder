@@ -1,0 +1,19 @@
+{
+  "name": "calendly-slack-reminder",
+  "version": "1.1.0",
+  "description": "Calendly webhook receiver that posts a Slack notification when a Patient Growth onboarding call is booked.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "register-webhook": "node registerWebhook.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.9.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0"
+  }
+}
