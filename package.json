@@ -1,7 +1,7 @@
 {
   "name": "calendly-slack-reminder",
-  "version": "1.1.0",
-  "description": "Calendly webhook receiver that posts a Slack notification when a Patient Growth onboarding call is booked.",
+  "version": "1.2.0",
+  "description": "Calendly webhook receiver that posts a Slack notification when a Patient Growth onboarding call or Opencare Training Call is booked.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
