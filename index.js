@@ -25,13 +25,35 @@ function resolveSlackId(hostFullName) {
   return HOST_TO_SLACK_ID[firstName] || null;
 }
 
-// Allow-list of event-name prefixes. Variants like "... + Integration" are
-// accepted automatically because we match by startsWith, but the FULL event
-// name (including any suffix) is what's shown in the Slack message.
-const ALLOWED_EVENT_PREFIXES = [
-  'Patient Growth - Onboarding Call',
-  'Patient Growth - Priority Onboarding Call',
+// Event-name prefixes -> notification type. Variants like "... + Integration"
+// are accepted automatically because we match by startsWith, but the FULL
+// event name (including any suffix) is what's shown in the Slack message.
+const EVENT_TYPES = [
+  { prefix: 'Patient Growth - Onboarding Call', type: 'ob' },
+  { prefix: 'Patient Growth - Priority Onboarding Call', type: 'ob' },
+  { prefix: 'Opencare Training Call', type: 'training' },
 ];
+
+function buildSlackText({ type, ownerMention, practiceName, meetingDate, eventName, pms }) {
+  if (type === 'training') {
+    return `Hey ${ownerMention}, Training call has been scheduled
+
+Practice Name: ${practiceName}
+Training Date: ${meetingDate}
+PMS: ${pms}
+
+Good luck with your training call!`;
+  }
+
+  return `Hey ${ownerMention}, an OB has been scheduled!
+
+Practice Name: ${practiceName}
+Onboarding Date: ${meetingDate}.
+OB type: ${eventName}
+PMS: ${pms}
+
+Please update our funnel accordingly.`;
+}
 
 app.post('/calendly-webhook', async (req, res) => {
   console.log('Webhook received:', JSON.stringify(req.body, null, 2));
@@ -50,14 +72,9 @@ app.post('/calendly-webhook', async (req, res) => {
 
   const eventNameRaw = payload.scheduled_event?.name?.trim() || '';
 
-  // Accept the event if it starts with one of the allowed prefixes. The full
-  // event name (e.g. 'Patient Growth - Onboarding Call + Integration') is
-  // preserved for display so variants are distinguishable in Slack.
-  const isAllowed = ALLOWED_EVENT_PREFIXES.some(prefix =>
-    eventNameRaw.startsWith(prefix)
-  );
+  const match = EVENT_TYPES.find(({ prefix }) => eventNameRaw.startsWith(prefix));
 
-  if (!isAllowed) {
+  if (!match) {
     console.log(`Ignored event name: ${eventNameRaw}`);
     return res.status(204).send();
   }
@@ -99,14 +116,14 @@ app.post('/calendly-webhook', async (req, res) => {
   const meetingDateFormatted = formatDateToronto(meetingStartTime);
 
   const slackMessage = {
-    text: `Hey ${ownerMention}, an OB has been scheduled!
-
-Practice Name: ${practiceName}
-Onboarding Date: ${meetingDateFormatted}.
-OB type: ${eventNameRaw}
-PMS: ${pms}
-
-Please update our funnel accordingly.`,
+    text: buildSlackText({
+      type: match.type,
+      ownerMention,
+      practiceName,
+      meetingDate: meetingDateFormatted,
+      eventName: eventNameRaw,
+      pms,
+    }),
   };
 
   console.log('Prepared Slack message:', slackMessage);
