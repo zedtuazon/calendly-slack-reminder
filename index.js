@@ -168,7 +168,7 @@ app.post('/calendly-webhook', async (req, res) => {
   const WEBHOOK_BY_TYPE = {
     ob: process.env.SLACK_WEBHOOK_URL,
     training: process.env.SLACK_WEBHOOK2_URL,
-    integration: process.env.SLACK_WEBHOOK3_URL,
+    integration: process.env.SLACK_WEBHOOK2_URL,
   };
   const slackWebhookUrl = WEBHOOK_BY_TYPE[match.type] || process.env.SLACK_WEBHOOK_URL;
 
