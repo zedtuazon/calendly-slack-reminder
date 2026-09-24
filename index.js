@@ -36,7 +36,7 @@ const EVENT_TYPES = [
 
 function buildSlackText({ type, ownerMention, practiceName, meetingDate, eventName, pms }) {
   if (type === 'training') {
-    return `Hey ${ownerMention}, Training call has been scheduled
+    return `Hey ${ownerMention}, a Training call has been scheduled!
 
 Practice Name: ${practiceName}
 Training Date: ${meetingDate}
@@ -45,7 +45,7 @@ PMS: ${pms}
 Good luck with your training call!`;
   }
 
-  return `Hey ${ownerMention}, an OB has been scheduled!
+  return `Hey ${ownerMention}, an Onboarding call has been scheduled!
 
 Practice Name: ${practiceName}
 Onboarding Date: ${meetingDate}.
@@ -128,8 +128,15 @@ app.post('/calendly-webhook', async (req, res) => {
 
   console.log('Prepared Slack message:', slackMessage);
 
+  // Training Call alerts go to their own channel when SLACK_WEBHOOK2_URL
+  // is set; otherwise they fall back to the main OB channel.
+  const slackWebhookUrl =
+    match.type === 'training'
+      ? process.env.SLACK_WEBHOOK2_URL || process.env.SLACK_WEBHOOK_URL
+      : process.env.SLACK_WEBHOOK_URL;
+
   try {
-    const response = await axios.post(process.env.SLACK_WEBHOOK_URL, slackMessage);
+    const response = await axios.post(slackWebhookUrl, slackMessage);
     console.log('Slack message sent successfully, status:', response.status);
   } catch (err) {
     console.error('Error sending Slack message:', err.response?.data || err.message);
