@@ -32,9 +32,29 @@ const EVENT_TYPES = [
   { prefix: 'Patient Growth - Onboarding Call', type: 'ob' },
   { prefix: 'Patient Growth - Priority Onboarding Call', type: 'ob' },
   { prefix: 'Opencare Training Call', type: 'training' },
+  { prefix: 'Calendar Setup', type: 'integration' },
+  { prefix: 'Opencare Calendar Setup', type: 'integration' },
+  { prefix: 'Opencare Re-Sync/Install', type: 'integration' },
+  { prefix: 'Opencare Pro Integration', type: 'integration' },
 ];
 
-function buildSlackText({ type, ownerMention, practiceName, meetingDate, eventName, pms }) {
+// Event names that match a prefix above but should never alert.
+const EXCLUDED_EVENT_KEYWORDS = ['staging'];
+
+// "Opencare Re-Sync / Install" and "Opencare Re-Sync/Install" both exist in
+// Calendly, so compare names with spaces around slashes removed.
+const normalizeEventName = (name) => name.replace(/\s*\/\s*/g, '/');
+
+function buildSlackText({ type, ownerMention, practiceName, meetingDate, eventName, pms, email, phone }) {
+  if (type === 'integration') {
+    return `Hi team! A call has been scheduled for ${eventName} with ${ownerMention}.
+
+Practice Name: ${practiceName}
+Email: ${email}
+Phone Number: ${phone}
+Date: ${meetingDate}`;
+  }
+
   if (type === 'training') {
     return `Hey ${ownerMention}, a Training call has been scheduled!
 
@@ -72,7 +92,13 @@ app.post('/calendly-webhook', async (req, res) => {
 
   const eventNameRaw = payload.scheduled_event?.name?.trim() || '';
 
-  const match = EVENT_TYPES.find(({ prefix }) => eventNameRaw.startsWith(prefix));
+  const eventNameNormalized = normalizeEventName(eventNameRaw);
+  const isExcluded = EXCLUDED_EVENT_KEYWORDS.some(k =>
+    eventNameNormalized.toLowerCase().includes(k)
+  );
+  const match = isExcluded
+    ? null
+    : EVENT_TYPES.find(({ prefix }) => eventNameNormalized.startsWith(prefix));
 
   if (!match) {
     console.log(`Ignored event name: ${eventNameRaw}`);
@@ -102,8 +128,15 @@ app.post('/calendly-webhook', async (req, res) => {
     q.includes('practice') &&
     !q.includes('management') &&
     !q.includes('software') &&
-    !q.includes('pms')
+    !q.includes('pms') &&
+    !q.includes('phone')
   );
+
+  const email = payload.email || 'N/A';
+
+  // Phone: prefer the booking-form answer, fall back to Calendly's SMS reminder number.
+  const phoneAnswer = findAnswer(q => q.includes('phone'));
+  const phone = phoneAnswer !== 'N/A' ? phoneAnswer : payload.text_reminder_number || 'N/A';
 
   // Resolve host -> Slack mention
   const hostFullName = payload.scheduled_event?.event_memberships?.[0]?.user_name || '';
@@ -123,17 +156,21 @@ app.post('/calendly-webhook', async (req, res) => {
       meetingDate: meetingDateFormatted,
       eventName: eventNameRaw,
       pms,
+      email,
+      phone,
     }),
   };
 
   console.log('Prepared Slack message:', slackMessage);
 
-  // Training Call alerts go to their own channel when SLACK_WEBHOOK2_URL
-  // is set; otherwise they fall back to the main OB channel.
-  const slackWebhookUrl =
-    match.type === 'training'
-      ? process.env.SLACK_WEBHOOK2_URL || process.env.SLACK_WEBHOOK_URL
-      : process.env.SLACK_WEBHOOK_URL;
+  // Each alert type can post to its own channel. If a type's webhook isn't
+  // set, it falls back to the main OB channel (SLACK_WEBHOOK_URL).
+  const WEBHOOK_BY_TYPE = {
+    ob: process.env.SLACK_WEBHOOK_URL,
+    training: process.env.SLACK_WEBHOOK2_URL,
+    integration: process.env.SLACK_WEBHOOK3_URL,
+  };
+  const slackWebhookUrl = WEBHOOK_BY_TYPE[match.type] || process.env.SLACK_WEBHOOK_URL;
 
   try {
     const response = await axios.post(slackWebhookUrl, slackMessage);
