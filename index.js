@@ -45,26 +45,64 @@ const EXCLUDED_EVENT_KEYWORDS = ['staging'];
 // Calendly, so compare names with spaces around slashes removed.
 const normalizeEventName = (name) => name.replace(/\s*\/\s*/g, '/');
 
-function buildSlackText({ type, ownerMention, practiceName, meetingDate, eventName, pms, email, phone }) {
-  if (type === 'integration') {
-    return `Hi team! A call has been scheduled for ${eventName} with ${ownerMention}.
+// Slack side-bar colour for each integration call type (matched on the
+// normalized event name, so "Re-Sync / Install" and "Re-Sync/Install" both work).
+const INTEGRATION_COLORS = [
+  { prefix: 'Opencare Re-Sync/Install', color: '#ECB22E' }, // yellow
+  { prefix: 'Opencare Pro Integration', color: '#2EB67D' }, // green
+  { prefix: 'Opencare Calendar Setup', color: '#F2891F' }, // orange
+  { prefix: 'Calendar Setup', color: '#F2891F' }, // orange
+];
 
-Practice Name: ${practiceName}
+function integrationColor(eventName) {
+  const normalized = normalizeEventName(eventName);
+  return INTEGRATION_COLORS.find(({ prefix }) => normalized.startsWith(prefix))?.color;
+}
+
+// Returns the Slack webhook body for an alert.
+function buildSlackMessage(fields) {
+  if (fields.type === 'integration') {
+    const { ownerMention, practiceName, meetingDate, eventName, pms, email, phone } = fields;
+    const headline = `Hi team! A call has been scheduled for ${eventName} with ${ownerMention}.`;
+    return {
+      text: headline,
+      attachments: [
+        {
+          color: integrationColor(eventName),
+          fallback: headline,
+          text: `Practice Name: ${practiceName}
 Email: ${email}
 Phone Number: ${phone}
-Date: ${meetingDate}`;
+Date: ${meetingDate}
+PMS: ${pms}`,
+        },
+      ],
+    };
   }
 
-  if (type === 'training') {
-    return `Hey ${ownerMention}, a Training call has been scheduled!
-
-Practice Name: ${practiceName}
+  if (fields.type === 'training') {
+    const { ownerMention, practiceName, meetingDate, pms } = fields;
+    const headline = `Hey ${ownerMention}, a Training call has been scheduled!`;
+    return {
+      text: headline,
+      attachments: [
+        {
+          color: '#1E88E5', // blue
+          fallback: headline,
+          text: `Practice Name: ${practiceName}
 Training Date: ${meetingDate}
 PMS: ${pms}
 
-Good luck with your training call!`;
+Good luck with your training call!`,
+        },
+      ],
+    };
   }
 
+  return { text: buildSlackText(fields) };
+}
+
+function buildSlackText({ ownerMention, practiceName, meetingDate, eventName, pms }) {
   return `Hey ${ownerMention}, an Onboarding call has been scheduled!
 
 Practice Name: ${practiceName}
@@ -148,18 +186,16 @@ app.post('/calendly-webhook', async (req, res) => {
 
   const meetingDateFormatted = formatDateToronto(meetingStartTime);
 
-  const slackMessage = {
-    text: buildSlackText({
-      type: match.type,
-      ownerMention,
-      practiceName,
-      meetingDate: meetingDateFormatted,
-      eventName: eventNameRaw,
-      pms,
-      email,
-      phone,
-    }),
-  };
+  const slackMessage = buildSlackMessage({
+    type: match.type,
+    ownerMention,
+    practiceName,
+    meetingDate: meetingDateFormatted,
+    eventName: eventNameRaw,
+    pms,
+    email,
+    phone,
+  });
 
   console.log('Prepared Slack message:', slackMessage);
 
